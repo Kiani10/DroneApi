@@ -7,15 +7,33 @@ class MissionController:
     # Mission Functions
     @staticmethod
     def create_mission(data):
-        new_mission = Mission(
-            mission_datetime=data['mission_datetime'], 
-            location_pad=data['location_pad'], 
-            img=data.get('img'),
-            drone_id=data['drone_id']
-        )
-        db.session.add(new_mission)
-        db.session.commit()
-        return new_mission
+        try:
+            # Create the mission first
+            new_mission = Mission(
+                mission_datetime=data['mission_datetime'],
+                location_pad=data['location_pad'],
+                img=data.get('img'),
+                drone_id=data['drone_id']
+            )
+            db.session.add(new_mission)
+            db.session.flush()  # Flush to get the new mission's ID
+
+            # Now add mission coordinates if provided
+            if 'coordinates' in data:
+                for coordinate in data['coordinates']:
+                    new_coordinates = MissionCoordinates(
+                        mission_id=new_mission.id,  # Use the mission ID from the newly created mission
+                        latitude=coordinate['latitude'],
+                        longitude=coordinate['longitude']
+                    )
+                    db.session.add(new_coordinates)
+
+            db.session.commit()  # Commit both mission and coordinates
+            return new_mission
+
+        except Exception as e:
+            db.session.rollback()  # Rollback if something goes wrong
+            raise e  # Optionally, you can return a specific error message
 
     @staticmethod
     def get_mission_by_id(mission_id):
@@ -50,8 +68,8 @@ class MissionController:
     @staticmethod
     def create_mission_coordinates(data):
         new_coordinates = MissionCoordinates(
-            mission_id=data['mission_id'], 
-            latitude=data['latitude'], 
+            mission_id=data['mission_id'],
+            latitude=data['latitude'],
             longitude=data['longitude']
         )
         db.session.add(new_coordinates)
