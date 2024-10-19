@@ -5,12 +5,33 @@ from app.Controller.DroneController import DroneController
 from app.Controller.MissionController import MissionController
 from app.Controller.StationController import StationController
 from app.Controller.StationAssignmentController import StationAssignmentController
+from app.Model.Login import Login
 
 # Initialize a Blueprint
 main = Blueprint('main', __name__)
 # ==========================
 # User Routes (Login, Admin, Operator)
 # ==========================
+@main.route('/user/login', methods=['POST'])
+def login_user():
+    # Extract the name and password from the request body
+    data = request.get_json()
+    name = data.get('name')
+    password = data.get('passwrd')
+
+    # Check if the user exists by name
+    user = Login.query.filter_by(name=name).first()
+    # Validate the password (assuming no hashing for now)
+    if user and user.passwrd == password:
+        # If credentials are valid, return a success response
+        return jsonify({
+            'message': 'Login successful',
+            'user': user.to_dict()
+        }), 200
+    else:
+        # If login fails, return an error
+        return jsonify({'message': 'Invalid name or password'}), 401
+
 @main.route('/users', methods=['GET'])
 def get_users():
     users = UserController.get_all_users()

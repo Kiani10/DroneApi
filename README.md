@@ -45,3 +45,4 @@ git diff <commit> # Compare with a specific commit
 10. Miscellaneous
 git branch --show-current # Show the current branch
 git ls-files --others --exclude-standard # Check for untracked files
+flask run --host=0.0.0.0 --port=5000
