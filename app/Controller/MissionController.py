@@ -1,40 +1,40 @@
-# app/controllers/MissionController.py
+from flask import current_app
 from ..Model.Mission import Mission
 from ..Model.MissionCoordinates import MissionCoordinates
 from .. import db
+import os
+from werkzeug.utils import secure_filename
 
 class MissionController:
-    # Mission Functions
     @staticmethod
     def create_mission(data):
         try:
-            # Create the mission first
+            # Create the mission object
             new_mission = Mission(
                 mission_datetime=data['mission_datetime'],
                 location_pad=data['location_pad'],
-                img=data.get('img'),
+                img=data['img'],  # The image path is passed here
                 drone_id=data['drone_id']
             )
             db.session.add(new_mission)
-            db.session.flush()  # Flush to get the new mission's ID
+            db.session.flush()  # To get the mission ID for coordinates
 
-            # Now add mission coordinates if provided
+            # Add mission coordinates
             if 'coordinates' in data:
-                for coordinate in data['coordinates']:
+                for coord in data['coordinates']:
                     new_coordinates = MissionCoordinates(
-                        mission_id=new_mission.id,  # Use the mission ID from the newly created mission
-                        latitude=coordinate['latitude'],
-                        longitude=coordinate['longitude']
+                        mission_id=new_mission.id,
+                        latitude=coord['latitude'],
+                        longitude=coord['longitude']
                     )
                     db.session.add(new_coordinates)
 
-            db.session.commit()  # Commit both mission and coordinates
+            db.session.commit()  # Commit all changes
             return new_mission
 
         except Exception as e:
-            db.session.rollback()  # Rollback if something goes wrong
-            raise e  # Optionally, you can return a specific error message
-
+            db.session.rollback()  # Rollback if something fails
+            raise e
     @staticmethod
     def get_mission_by_id(mission_id):
         return Mission.query.get(mission_id)
@@ -44,13 +44,22 @@ class MissionController:
         return Mission.query.all()
 
     @staticmethod
-    def update_mission(mission_id, data):
+    def update_mission(mission_id, data, file=None):
         mission = Mission.query.get(mission_id)
         if mission:
             mission.mission_datetime = data.get('mission_datetime', mission.mission_datetime)
             mission.location_pad = data.get('location_pad', mission.location_pad)
-            mission.img = data.get('img', mission.img)
             mission.drone_id = data.get('drone_id', mission.drone_id)
+
+            # Handle image file upload for update
+            if file:
+                if not MissionController.allowed_file(file.filename):
+                    raise ValueError("Invalid image format.")
+                filename = secure_filename(file.filename)
+                img_path = os.path.join(MissionController.UPLOAD_FOLDER, filename)
+                file.save(os.path.join(current_app.root_path, img_path))
+                mission.img = img_path  # Update image path if a new image is provided
+
             db.session.commit()
             return mission
         return None
@@ -64,7 +73,6 @@ class MissionController:
             return True
         return False
 
-    # Mission Coordinates Functions
     @staticmethod
     def create_mission_coordinates(data):
         new_coordinates = MissionCoordinates(

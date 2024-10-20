@@ -23,13 +23,16 @@ class StationController:
     def get_all_stations():
         return Station.query.all()
 
+
+
+################################################################################
     @staticmethod
     def update_station(station_id, data, image=None):
         station = Station.query.get(station_id)
         if station:
             station.name = data.get('name', station.name)
             station.location = data.get('location', station.location)
-
+            
             if image:
                 # Save and update the image if a new image is provided
                 image_path = StationController.save_image(image)
@@ -38,7 +41,7 @@ class StationController:
             db.session.commit()
             return station
         return None
-
+################################################################################
     @staticmethod
     def delete_station(station_id):
         station = Station.query.get(station_id)

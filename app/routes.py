@@ -152,19 +152,82 @@ def get_mission(mission_id):
         return jsonify(mission.to_dict())
     return jsonify({'message': 'Mission not found'}), 404
 
+UPLOAD_FOLDER_MISSION = 'upload/missionHelipadImages/'
+
 @main.route('/mission', methods=['POST'])
 def create_mission():
-    data = request.get_json()
-    new_mission = MissionController.create_mission(data)
-    return jsonify(new_mission.to_dict()), 201
+    try:
+        # Ensure mission_datetime, location_pad, drone_id are present in the form data
+        mission_datetime = request.form.get('mission_datetime')
+        location_pad = request.form.get('location_pad')
+        drone_id = request.form.get('drone_id')
+        
+        # Ensure the required fields are provided
+        if not mission_datetime or not location_pad or not drone_id:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Process the coordinates from the form data
+        coordinates = []
+        i = 0
+        while True:
+            lat = request.form.get(f'coordinates[{i}][latitude]')
+            lng = request.form.get(f'coordinates[{i}][longitude]')
+            if lat and lng:
+                coordinates.append({
+                    'latitude': float(lat),
+                    'longitude': float(lng)
+                })
+                i += 1
+            else:
+                break
+        
+        # At least two coordinates must be provided
+        if len(coordinates) < 2:
+            return jsonify({'error': 'At least two coordinates are required'}), 400
+        
+        # Handle image upload
+        image = request.files.get('img')
+        if image:
+            # Ensure the upload directory exists
+            if not os.path.exists(UPLOAD_FOLDER_MISSION):
+                os.makedirs(UPLOAD_FOLDER_MISSION)
+            
+            # Secure the image filename and save it
+            filename = secure_filename(image.filename)
+            image_path = os.path.join(UPLOAD_FOLDER_MISSION, filename)
+            image.save(image_path)
+        else:
+            return jsonify({'error': 'Image is required'}), 400
+
+        # Prepare mission data to pass to the controller
+        mission_data = {
+            'mission_datetime': mission_datetime,
+            'location_pad': location_pad,
+            'img': image_path,  # Save the image path to the database
+            'drone_id': int(drone_id),
+            'coordinates': coordinates
+        }
+
+        # Create the mission through the controller
+        new_mission = MissionController.create_mission(mission_data)
+        
+        return jsonify(new_mission.to_dict()), 201
+
+    except Exception as e:
+        print(e)
+        return jsonify({'error': 'Something went wrong during mission creation'}), 500
 
 @main.route('/mission/<int:mission_id>', methods=['PUT'])
 def update_mission(mission_id):
-    data = request.get_json()
-    updated_mission = MissionController.update_mission(mission_id, data)
-    if updated_mission:
-        return jsonify(updated_mission.to_dict())
-    return jsonify({'message': 'Mission not found'}), 404
+    try:
+        data = request.form.to_dict()
+        file = request.files.get('image')  # Get the uploaded image file
+        updated_mission = MissionController.update_mission(mission_id, data, file)
+        if updated_mission:
+            return jsonify(updated_mission.to_dict())
+        return jsonify({'message': 'Mission not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @main.route('/mission/<int:mission_id>', methods=['DELETE'])
 def delete_mission(mission_id):
@@ -193,23 +256,22 @@ def get_stations():
     stations = StationController.get_all_stations()
     return jsonify([station.to_dict() for station in stations])
 
-@main.route('/station/<int:station_id>', methods=['GET'])
+@main.route('/station/<int:station_id>', methods=['SGET'])
 def get_station(station_id):
     station = StationController.get_station_by_id(station_id)
     if station:
         return jsonify(station.to_dict())
     return jsonify({'message': 'Station not found'}), 404
 
-UPLOAD_FOLDER = 'uploads/'  # Define where you want to save the uploaded files
-
-# Ensure the upload folder exists
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+UPLOAD_FOLDER = 'upload/'  # Define where you want to save the uploaded files
 
 @main.route('/station', methods=['POST'])
 def create_station():
+    if not os.path.exists(UPLOAD_FOLDER):
+      os.makedirs(UPLOAD_FOLDER)
     if 'station_name' not in request.form or 'latitude' not in request.form or 'longitude' not in request.form:
         return jsonify({'message': 'Missing required fields'}), 400
+    # Ensure the upload folder exists
 
     # Extract form fields
     station_name = request.form['station_name']
@@ -238,23 +300,73 @@ def create_station():
     # Return a success response
     return jsonify({'message': 'Station created successfully', 'station': new_station}), 201
 
+
+################################################################################
 @main.route('/station/<int:station_id>', methods=['PUT'])
 def update_station(station_id):
-    # Handle image file if provided
-    if 'location_pad_img' in request.files:
-        image = request.files['location_pad_img']
-    else:
-        image = None
+    # Fetch the station from the database
+    existing_station = StationController.get_station_by_id(station_id)
 
+    if not existing_station:
+        return jsonify({'message': 'Station not found'}), 404
+
+    # Get form data for name, latitude, and longitude
+    station_name = request.form.get('station_name')
+    latitude = request.form.get('latitude')
+    longitude = request.form.get('longitude')
+
+    # Ensure latitude and longitude are not None
+    if not latitude or not longitude:
+        return jsonify({'message': 'Latitude or Longitude is missing'}), 400
+
+    # Prepare data for updating the station
     data = {
-        'name': request.form.get('name'),
-        'location': request.form.get('location')
+        'name': station_name,
+        'location': f'{latitude},{longitude}',  # Concatenate latitude and longitude
     }
 
-    updated_station = StationController.update_station(station_id, data, image=image)
+    # Handle image file if provided
+    image = request.files.get('location_pad_img', None)  # Fetch image if present
+
+    # If a new image is provided, handle old image deletion and save the new one
+    if image:
+        if existing_station.location_pad_img:  # If an old image exists, delete it
+            old_image_path = existing_station.location_pad_img
+            if os.path.exists(old_image_path):
+                try:
+                    os.remove(old_image_path)  # Remove the old image
+                except OSError as e:
+                    print(f"Error deleting file: {e}")
+
+        # Save the new image and update the image path in the database
+        new_image_path = save_image(image)
+        data['location_pad_img'] = new_image_path  # Add the new image path to the data
+
+    # Call the controller to update the station with the new data
+    updated_station = StationController.update_station(station_id, data)
+
     if updated_station:
-        return jsonify(updated_station.to_dict())
+        return jsonify(updated_station.to_dict()), 200
     return jsonify({'message': 'Station not found'}), 404
+
+
+def save_image(image):
+    # Ensure the folder exists
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+    
+    # Generate a secure filename
+    filename = secure_filename(image.filename)
+    
+    # Define the full path for the image
+    image_path = os.path.join(UPLOAD_FOLDER, filename)
+    
+    # Save the image
+    image.save(image_path)
+    
+    return image_path  # Return the path where the image is stored
+################################################################################
+
 
 @main.route('/station/<int:station_id>', methods=['DELETE'])
 def delete_station(station_id):

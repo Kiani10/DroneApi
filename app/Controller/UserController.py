@@ -48,14 +48,25 @@ class UserController:
     # Operator Functions
     @staticmethod
     def create_operator(data):
+        # Step 1: Create a user in the Login table
+        new_user = Login(
+            name=data['name'],
+            passwrd=data['passwrd'],  # Assuming you're passing a password in the request
+            role='operator'  # Hardcode role as 'operator' or dynamically set it
+        )
+        db.session.add(new_user)
+        db.session.commit()
+
+        # Step 2: Create the operator in the Operator table with the same id from Login
         new_operator = Operater(
-            id=data['id'], 
+            id=new_user.id,  # Use the id from the newly created Login entry
             name=data['name'], 
             shift=data['shift']
         )
         db.session.add(new_operator)
         db.session.commit()
-        return new_operator
+
+        return new_operator  # Return the created operator object
 
     @staticmethod
     def get_operator_by_id(operator_id):
