@@ -1,4 +1,5 @@
 # app/routes.py
+import os
 from flask import Blueprint, request, jsonify
 from app.Controller.UserController import UserController
 from app.Controller.DroneController import DroneController
@@ -6,12 +7,14 @@ from app.Controller.MissionController import MissionController
 from app.Controller.StationController import StationController
 from app.Controller.StationAssignmentController import StationAssignmentController
 from app.Model.Login import Login
+from werkzeug.utils import secure_filename
+
 
 # Initialize a Blueprint
 main = Blueprint('main', __name__)
 # ==========================
 # User Routes (Login, Admin, Operator)
-# ==========================
+# ==========================cls
 @main.route('/user/login', methods=['POST'])
 def login_user():
     # Extract the name and password from the request body
@@ -197,16 +200,58 @@ def get_station(station_id):
         return jsonify(station.to_dict())
     return jsonify({'message': 'Station not found'}), 404
 
+UPLOAD_FOLDER = 'uploads/'  # Define where you want to save the uploaded files
+
+# Ensure the upload folder exists
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 @main.route('/station', methods=['POST'])
 def create_station():
-    data = request.get_json()
-    new_station = StationController.create_station(data)
-    return jsonify(new_station.to_dict()), 201
+    if 'station_name' not in request.form or 'latitude' not in request.form or 'longitude' not in request.form:
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    # Extract form fields
+    station_name = request.form['station_name']
+    latitude = request.form['latitude']
+    longitude = request.form['longitude']
+
+    # Check if an image file is part of the request
+    if 'image' not in request.files:
+        return jsonify({'message': 'No image file uploaded'}), 400
+
+    # Save the image file
+    image = request.files['image']
+    filename = secure_filename(image.filename)
+    image_path = os.path.join(UPLOAD_FOLDER, filename)
+    image.save(image_path)
+
+    # Optionally, save the station data to the database
+    new_station = {
+        'name': station_name,
+        'location': latitude+','+longitude,
+        'image_path': image_path
+    }
+    StationController.create_station(new_station,image_path)
+    print(new_station)
+
+    # Return a success response
+    return jsonify({'message': 'Station created successfully', 'station': new_station}), 201
 
 @main.route('/station/<int:station_id>', methods=['PUT'])
 def update_station(station_id):
-    data = request.get_json()
-    updated_station = StationController.update_station(station_id, data)
+    # Handle image file if provided
+    if 'location_pad_img' in request.files:
+        image = request.files['location_pad_img']
+    else:
+        image = None
+
+    data = {
+        'name': request.form.get('name'),
+        'location': request.form.get('location')
+    }
+
+    updated_station = StationController.update_station(station_id, data, image=image)
     if updated_station:
         return jsonify(updated_station.to_dict())
     return jsonify({'message': 'Station not found'}), 404
