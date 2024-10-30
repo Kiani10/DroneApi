@@ -35,8 +35,7 @@ class StationController:
             
             if image:
                 # Save and update the image if a new image is provided
-                image_path = StationController.save_image(image)
-                station.location_pad_img = image_path
+                station.location_pad_img = data.get('location_pad_img', station.location_pad_img)
 
             db.session.commit()
             return station

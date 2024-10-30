@@ -16,8 +16,10 @@ class StationAssignmentController:
         return new_record
 
     @staticmethod
-    def get_station_drone_record_by_id(record_id):
-        return StationDroneRecord.query.get(record_id)
+    # def get_station_drone_record_by_id(record_id):
+    #     return StationDroneRecord.query.get(record_id)
+    def get_station_drone_records_by_id(station_id):
+        return StationDroneRecord.query.filter_by(station_id=station_id).all() 
 
     @staticmethod
     def get_all_station_drone_records():
@@ -54,8 +56,10 @@ class StationAssignmentController:
         return new_record
 
     @staticmethod
-    def get_station_operator_record_by_id(record_id):
-        return StationOperatorRecord.query.get(record_id)
+    # def get_station_operator_record_by_id(record_id):
+    #     return StationOperatorRecord.query.get(record_id)
+    def get_station_operator_records_by_id(operator_id):
+        return StationOperatorRecord.query.filter_by(operator_id=operator_id).all() 
 
     @staticmethod
     def get_all_station_operator_records():

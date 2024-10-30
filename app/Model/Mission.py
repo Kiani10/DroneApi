@@ -7,10 +7,11 @@ class Mission(db.Model):
     mission_datetime = db.Column(db.DateTime, nullable=False)
     location_pad = db.Column(db.String(255), nullable=False)
     img = db.Column(db.Text)
+    status=db.Column(db.Integer, nullable=False)
     drone_id = db.Column(db.Integer, db.ForeignKey('Drone.id'))
 
     def __repr__(self):
-        return f"<Mission(id={self.id}, mission_datetime={self.mission_datetime}, location_pad={self.location_pad})>"
+        return f"<Mission(id={self.id}, mission_datetime={self.mission_datetime}, location_pad={self.location_pad},status={self.status})>"
 
     def to_dict(self):
         return {
@@ -18,5 +19,6 @@ class Mission(db.Model):
             'mission_datetime': self.mission_datetime,
             'location_pad': self.location_pad,
             'img': self.img,
+            'status':self.status,
             'drone_id': self.drone_id
         }

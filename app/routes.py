@@ -19,11 +19,11 @@ main = Blueprint('main', __name__)
 def login_user():
     # Extract the name and password from the request body
     data = request.get_json()
-    name = data.get('name')
+    email = data.get('email')
     password = data.get('passwrd')
-
+    print(email)
     # Check if the user exists by name
-    user = Login.query.filter_by(name=name).first()
+    user = Login.query.filter_by(email=email).first()
     # Validate the password (assuming no hashing for now)
     if user and user.passwrd == password:
         # If credentials are valid, return a success response
@@ -110,6 +110,28 @@ def get_drones():
     drones = DroneController.get_all_drones()
     return jsonify([drone.to_dict() for drone in drones])
 
+@main.route('/drones/specific/<int:operator_id>', methods=['GET'])
+def get_specific_drones(operator_id):
+        #print(operator_id)
+    #first we have to search that any station is assigned to that operator
+    StationOperatorList=StationAssignmentController.get_station_operator_records_by_id(operator_id)
+    #print(StationOperatorList)
+    #Second we have to see if any drone is assigned to that station
+    DroneList=[]
+    for station in StationOperatorList:
+        station=station.to_dict()
+        #So we will get statoin id from there
+        StationDroneRecord=StationAssignmentController.get_station_drone_records_by_id(station['station_id'])
+        #print(StationDroneRecord)
+        for drone in StationDroneRecord:
+            DroneList.append(drone.drone_id)
+        
+    print(DroneList)
+    drones = DroneController.get_all_drones()
+    return jsonify([drone.to_dict() for drone in drones if drone.id in DroneList])
+
+
+
 @main.route('/drone/<int:drone_id>', methods=['GET'])
 def get_drone(drone_id):
     drone = DroneController.get_drone_by_id(drone_id)
@@ -140,9 +162,30 @@ def delete_drone(drone_id):
 # ==========================
 # Mission Routes
 # ==========================
-@main.route('/missions', methods=['GET'])
-def get_missions():
-    missions = MissionController.get_all_missions()
+@main.route('/missions/<int:operator_id>', methods=['GET'])
+def get_missions(operator_id):
+    #print(operator_id)
+    #first we have to search that any station is assigned to that operator
+    StationOperatorList=StationAssignmentController.get_station_operator_records_by_id(operator_id)
+    #print(StationOperatorList)
+    #Second we have to see if any drone is assigned to that station
+    DroneList=[]
+    for station in StationOperatorList:
+        station=station.to_dict()
+        #So we will get statoin id from there
+        StationDroneRecord=StationAssignmentController.get_station_drone_records_by_id(station['station_id'])
+        #print(StationDroneRecord)
+        for drone in StationDroneRecord:
+            DroneList.append(drone.drone_id)
+        
+    print(DroneList)
+
+    #Third we have to give only list of those mission where drone is assigned
+    
+
+    missions = MissionController.get_all_missions(DroneList)
+
+    print(missions)
     return jsonify([mission.to_dict() for mission in missions])
 
 @main.route('/mission/<int:mission_id>', methods=['GET'])
@@ -160,6 +203,7 @@ def create_mission():
         # Ensure mission_datetime, location_pad, drone_id are present in the form data
         mission_datetime = request.form.get('mission_datetime')
         location_pad = request.form.get('location_pad')
+        status=request.form.get('status')
         drone_id = request.form.get('drone_id')
         
         # Ensure the required fields are provided
@@ -204,6 +248,7 @@ def create_mission():
             'mission_datetime': mission_datetime,
             'location_pad': location_pad,
             'img': image_path,  # Save the image path to the database
+            'status':status,
             'drone_id': int(drone_id),
             'coordinates': coordinates
         }
@@ -219,19 +264,44 @@ def create_mission():
 
 @main.route('/mission/<int:mission_id>', methods=['PUT'])
 def update_mission(mission_id):
-    try:
-        data = request.form.to_dict()
-        file = request.files.get('image')  # Get the uploaded image file
-        updated_mission = MissionController.update_mission(mission_id, data, file)
-        if updated_mission:
-            return jsonify(updated_mission.to_dict())
-        return jsonify({'message': 'Mission not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+    # try:
+    #     data = request.form.to_dict()
+    #     file = request.files.get('image')  # Get the uploaded image file
+    #     updated_mission = MissionController.update_mission(mission_id, data, file)
+    #     if updated_mission:
+    #         return jsonify(updated_mission.to_dict())
+    #     return jsonify({'message': 'Mission not found'}), 404
+    # except Exception as e:
+    #     return jsonify({'error': str(e)}), 400
+    data = request.get_json()
+    res=MissionController.update_mission(mission_id,data['status'])
+    if res:
+          print('Updated')
+          return jsonify({'message': 'Mission  Status Updated Successfulluy'}) 
+    print('Updated')
+    return jsonify({'message': 'Mission not Updated'}), 404
+
+
+    
 
 @main.route('/mission/<int:mission_id>', methods=['DELETE'])
 def delete_mission(mission_id):
+
+    # first getting the path so we can also delete the image of mission from the server
+    mission = MissionController.get_mission_by_id(mission_id)
+    mission=mission.to_dict()
+    path=mission['img']
+
+    #but first we have to delete misson coordinates then we can delete mission
+    MissionController.delete_mission_coordinates(mission_id)
+
+    #then we will delete the mission
     if MissionController.delete_mission(mission_id):
+        if os.path.exists(path):
+            try:
+                os.remove(path)  # Remove the old image
+            except OSError as e:
+                print(f"Error deleting file: {e}")
         return jsonify({'message': 'Mission deleted successfully'})
     return jsonify({'message': 'Mission not found'}), 404
 
@@ -315,6 +385,7 @@ def update_station(station_id):
     latitude = request.form.get('latitude')
     longitude = request.form.get('longitude')
 
+    print(latitude,longitude,station_name)
     # Ensure latitude and longitude are not None
     if not latitude or not longitude:
         return jsonify({'message': 'Latitude or Longitude is missing'}), 400
@@ -329,6 +400,7 @@ def update_station(station_id):
     image = request.files.get('location_pad_img', None)  # Fetch image if present
 
     # If a new image is provided, handle old image deletion and save the new one
+    
     if image:
         if existing_station.location_pad_img:  # If an old image exists, delete it
             old_image_path = existing_station.location_pad_img
@@ -340,10 +412,14 @@ def update_station(station_id):
 
         # Save the new image and update the image path in the database
         new_image_path = save_image(image)
+        print(new_image_path)
         data['location_pad_img'] = new_image_path  # Add the new image path to the data
+        updated_station = StationController.update_station(station_id, data,image)
 
     # Call the controller to update the station with the new data
-    updated_station = StationController.update_station(station_id, data)
+    if not image:
+        updated_station = StationController.update_station(station_id, data)
+        
 
     if updated_station:
         return jsonify(updated_station.to_dict()), 200
@@ -424,6 +500,7 @@ def get_station_operator_record(record_id):
 @main.route('/station_assignments/operator', methods=['POST'])
 def create_station_operator_record():
     data = request.get_json()
+    print(data)
     new_record = StationAssignmentController.create_station_operator_record(data)
     return jsonify(new_record.to_dict()), 201
 

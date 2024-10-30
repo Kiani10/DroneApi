@@ -14,6 +14,7 @@ class MissionController:
                 mission_datetime=data['mission_datetime'],
                 location_pad=data['location_pad'],
                 img=data['img'],  # The image path is passed here
+                status=data['status'],
                 drone_id=data['drone_id']
             )
             db.session.add(new_mission)
@@ -40,29 +41,37 @@ class MissionController:
         return Mission.query.get(mission_id)
 
     @staticmethod
-    def get_all_missions():
-        return Mission.query.all()
+    def get_all_missions(DroneList):
+        return Mission.query.filter(Mission.drone_id.in_(DroneList)).all()
 
     @staticmethod
-    def update_mission(mission_id, data, file=None):
+    def update_mission(mission_id, status, data=None, file=None):
+        # mission = Mission.query.get(mission_id)
+        # if mission:
+        #     mission.mission_datetime = data.get('mission_datetime', mission.mission_datetime)
+        #     mission.status = data.get('status', mission.status)
+        #     mission.location_pad = data.get('location_pad', mission.location_pad)
+        #     mission.drone_id = data.get('drone_id', mission.drone_id)
+
+        #     # Handle image file upload for update
+        #     if file:
+        #         if not MissionController.allowed_file(file.filename):
+        #             raise ValueError("Invalid image format.")
+        #         filename = secure_filename(file.filename)
+        #         img_path = os.path.join(MissionController.UPLOAD_FOLDER, filename)
+        #         file.save(os.path.join(current_app.root_path, img_path))
+        #         mission.img = img_path  # Update image path if a new image is provided
+
+        #     db.session.commit()
+        #     return mission
+        # return None
         mission = Mission.query.get(mission_id)
         if mission:
-            mission.mission_datetime = data.get('mission_datetime', mission.mission_datetime)
-            mission.location_pad = data.get('location_pad', mission.location_pad)
-            mission.drone_id = data.get('drone_id', mission.drone_id)
-
-            # Handle image file upload for update
-            if file:
-                if not MissionController.allowed_file(file.filename):
-                    raise ValueError("Invalid image format.")
-                filename = secure_filename(file.filename)
-                img_path = os.path.join(MissionController.UPLOAD_FOLDER, filename)
-                file.save(os.path.join(current_app.root_path, img_path))
-                mission.img = img_path  # Update image path if a new image is provided
-
-            db.session.commit()
-            return mission
-        return None
+            if mission.status==1:
+                mission.status=status
+                db.session.commit()
+                return True
+        return False
 
     @staticmethod
     def delete_mission(mission_id):
@@ -99,10 +108,14 @@ class MissionController:
         return None
 
     @staticmethod
-    def delete_mission_coordinates(coordinate_id):
-        coordinates = MissionCoordinates.query.get(coordinate_id)
+    def delete_mission_coordinates(mission_id):
+        coordinates = MissionCoordinates.query.filter_by(mission_id=mission_id).all()  # Query all coordinates with the given mission_id
         if coordinates:
-            db.session.delete(coordinates)
+            for coord in coordinates:
+                db.session.delete(coord)
             db.session.commit()
             return True
         return False
+
+
+        

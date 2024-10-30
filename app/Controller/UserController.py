@@ -10,6 +10,7 @@ class UserController:
     def create_user(data):
         new_user = Login(
             name=data['name'], 
+            email=data['email'],  # Added email
             passwrd=data['passwrd'], 
             role=data['role']
         )
@@ -30,6 +31,7 @@ class UserController:
         user = Login.query.get(user_id)
         if user:
             user.name = data.get('name', user.name)
+            user.email = data.get('email', user.email)
             user.passwrd = data.get('passwrd', user.passwrd)
             user.role = data.get('role', user.role)
             db.session.commit()
@@ -51,8 +53,9 @@ class UserController:
         # Step 1: Create a user in the Login table
         new_user = Login(
             name=data['name'],
+            email=data['email'],
             passwrd=data['passwrd'],  # Assuming you're passing a password in the request
-            role='operator'  # Hardcode role as 'operator' or dynamically set it
+            role='operator'  # Hardcode role as 'operator' or dynamically set it//because we cannot create admin in this
         )
         db.session.add(new_user)
         db.session.commit()

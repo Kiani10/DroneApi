@@ -17,7 +17,7 @@ def create_app():
 
     # File upload configurations
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB upload limit
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')  # Define the upload folder path
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), 'upload')  # Define the upload folder path
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
     # Ensure the upload folder exists
