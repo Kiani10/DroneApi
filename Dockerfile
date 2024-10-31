@@ -10,7 +10,7 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy requirements file and install Python dependencies
-COPY req.txt /app/req.txt
+COPY req.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of your application code
