@@ -3,9 +3,8 @@ FROM python:3.11
 
 # Install system dependencies needed for pyodbc
 RUN apt-get update && \
-    apt-get install -y unixodbc-dev libodbc1 libodbcinstq4-dev gcc g++ && \
+    apt-get install -y unixodbc-dev libodbc1 gcc g++ && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Set the working directory
 WORKDIR /app
 
